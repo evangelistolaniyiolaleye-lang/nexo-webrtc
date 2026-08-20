@@ -14,6 +14,7 @@ content="width=device-width, initial-scale=1.0">
 
 body {
     margin: 0;
+    padding: 0;
     background: #111;
     color: white;
     font-family: Arial, sans-serif;
@@ -21,22 +22,23 @@ body {
 }
 
 h2 {
-    margin: 15px;
+    margin: 15px 0;
 }
 
 #localVideo {
     width: 100%;
-    height: 60vh;
+    max-height: 65vh;
     background: black;
     object-fit: cover;
 }
 
 #status {
-    margin: 12px;
+    margin: 10px;
+    font-size: 14px;
 }
 
 button {
-    padding: 12px;
+    padding: 12px 14px;
     margin: 5px;
     border: none;
     border-radius: 10px;
@@ -54,13 +56,14 @@ button {
 <video
 id="localVideo"
 autoplay
-playsinline
-muted>
+playsinline>
 </video>
 
 <div id="status">
-Starting...
+Connecting to camera and microphone...
 </div>
+
+<div>
 
 <button
 id="muteButton"
@@ -79,23 +82,23 @@ onclick="switchCamera()">
 🔄 Switch Camera
 </button>
 
+</div>
+
 
 <script>
 
-let stream = null;
+let stream;
 
-let audioTrack = null;
+let videoTrack;
 
-let videoTrack = null;
+let audioTrack;
 
-let cameras = [];
-
-let currentCamera = 0;
+let currentCamera = "user";
 
 
-// =================================
-// START
-// =================================
+// ======================================
+// START CAMERA AND MICROPHONE
+// ======================================
 
 async function startCall() {
 
@@ -116,15 +119,12 @@ async function startCall() {
         .srcObject = stream;
 
 
-        audioTrack =
-        stream.getAudioTracks()[0];
-
-
         videoTrack =
         stream.getVideoTracks()[0];
 
 
-        await getCameras();
+        audioTrack =
+        stream.getAudioTracks()[0];
 
 
         document
@@ -140,7 +140,7 @@ async function startCall() {
         document
         .getElementById("status")
         .innerText =
-        "❌ Camera/Microphone error";
+        "❌ Camera or microphone permission denied.";
 
         console.log(error);
 
@@ -149,50 +149,18 @@ async function startCall() {
 }
 
 
-// =================================
-// FIND CAMERAS
-// =================================
-
-async function getCameras() {
-
-    const devices =
-    await navigator
-    .mediaDevices
-    .enumerateDevices();
-
-
-    cameras =
-    devices.filter(function(device) {
-
-        return device.kind ===
-        "videoinput";
-
-    });
-
-
-    console.log("Cameras found:",
-    cameras);
-
-
-    if (cameras.length < 2) {
-
-        document
-        .getElementById("status")
-        .innerText =
-        "⚠️ Only one camera detected";
-
-    }
-
-}
-
-
-// =================================
-// MUTE
-// =================================
+// ======================================
+// MUTE / UNMUTE
+// ======================================
 
 function toggleMute() {
 
     if (!audioTrack) {
+
+        document
+        .getElementById("status")
+        .innerText =
+        "⚠️ Microphone not available";
 
         return;
 
@@ -236,9 +204,9 @@ function toggleMute() {
 }
 
 
-// =================================
-// CAMERA ON/OFF
-// =================================
+// ======================================
+// CAMERA ON / OFF
+// ======================================
 
 function toggleCamera() {
 
@@ -274,94 +242,73 @@ function toggleCamera() {
 }
 
 
-// =================================
+// ======================================
 // SWITCH CAMERA
-// =================================
+// ======================================
 
 async function switchCamera() {
 
+    if (!stream) {
+
+        return;
+
+    }
+
+
     try {
 
-        await getCameras();
-
-
-        if (cameras.length < 2) {
-
-            document
-            .getElementById("status")
-            .innerText =
-            "⚠️ Only one camera detected";
-
-            return;
-
-        }
-
-
         currentCamera =
-        (currentCamera + 1)
-        % cameras.length;
+        currentCamera === "user"
+        ? "environment"
+        : "user";
 
 
         const newStream =
-        await navigator
-        .mediaDevices
-        .getUserMedia({
+        await navigator.mediaDevices.getUserMedia({
 
             video: {
 
-                deviceId: {
-                    exact:
-                    cameras[currentCamera]
-                    .deviceId
-                }
+                facingMode:
+                currentCamera
 
             },
 
-            audio: false
+            audio: true
 
         });
-
-
-        const newVideoTrack =
-        newStream
-        .getVideoTracks()[0];
-
-
-        const oldVideoTrack =
-        stream
-        .getVideoTracks()[0];
-
-
-        if (oldVideoTrack) {
-
-            oldVideoTrack.stop();
-
-            stream
-            .removeTrack(
-            oldVideoTrack);
-
-        }
-
-
-        stream
-        .addTrack(
-        newVideoTrack);
-
-
-        videoTrack =
-        newVideoTrack;
 
 
         document
         .getElementById("localVideo")
         .srcObject =
-        stream;
+        newStream;
+
+
+        stream
+        .getTracks()
+        .forEach(function(track) {
+
+            track.stop();
+
+        });
+
+
+        stream =
+        newStream;
+
+
+        videoTrack =
+        stream.getVideoTracks()[0];
+
+
+        audioTrack =
+        stream.getAudioTracks()[0];
 
 
         document
         .getElementById("status")
         .innerText =
-        "🔄 Camera switched";
+        "🎤 Microphone ON";
 
 
     }
@@ -371,8 +318,7 @@ async function switchCamera() {
         document
         .getElementById("status")
         .innerText =
-        "❌ Switch camera failed";
-
+        "❌ Unable to switch camera";
 
         console.log(error);
 
@@ -381,7 +327,10 @@ async function switchCamera() {
 }
 
 
+// ======================================
 // START
+// ======================================
+
 startCall();
 
 </script>
