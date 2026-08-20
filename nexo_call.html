@@ -7,42 +7,36 @@
 <title>Nexo Calling</title>
 
 <style>
-    body {
-        margin: 0;
-        padding: 0;
-        background: #111;
-        color: white;
-        font-family: Arial, sans-serif;
-        text-align: center;
-    }
+body {
+    margin: 0;
+    background: #111;
+    color: white;
+    font-family: Arial, sans-serif;
+    text-align: center;
+}
 
-    h2 {
-        margin: 15px 0;
-    }
+h2 {
+    margin: 15px;
+}
 
-    #localVideo {
-        width: 100%;
-        max-height: 65vh;
-        background: black;
-        object-fit: cover;
-    }
+video {
+    width: 100%;
+    max-height: 60vh;
+    background: black;
+}
 
-    .controls {
-        padding: 15px 5px;
-    }
+#status {
+    margin: 12px;
+    font-size: 15px;
+}
 
-    button {
-        padding: 12px 14px;
-        margin: 5px;
-        border: none;
-        border-radius: 10px;
-        font-size: 15px;
-    }
-
-    #status {
-        margin: 10px;
-        font-size: 14px;
-    }
+button {
+    padding: 12px;
+    margin: 5px;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+}
 </style>
 </head>
 
@@ -53,22 +47,22 @@
 <video id="localVideo" autoplay playsinline muted></video>
 
 <div id="status">
-    Connecting to camera and microphone...
+Starting camera and microphone...
 </div>
 
-<div class="controls">
+<div>
 
-    <button id="muteButton" onclick="toggleMute()">
-        🎤 Mute
-    </button>
+<button id="muteButton" onclick="toggleMute()">
+🎤 Mute
+</button>
 
-    <button id="cameraButton" onclick="toggleCamera()">
-        📹 Camera
-    </button>
+<button id="cameraButton" onclick="toggleCamera()">
+📹 Camera
+</button>
 
-    <button onclick="switchCamera()">
-        🔄 Switch Camera
-    </button>
+<button onclick="switchCamera()">
+🔄 Switch Camera
+</button>
 
 </div>
 
@@ -81,7 +75,7 @@ let audioTrack = null;
 let currentCamera = "user";
 
 
-// START CAMERA AND MICROPHONE
+// START CAMERA + MICROPHONE
 async function startCall() {
 
     try {
@@ -96,45 +90,63 @@ async function startCall() {
         document.getElementById("localVideo").srcObject = stream;
 
         videoTrack = stream.getVideoTracks()[0];
+
         audioTrack = stream.getAudioTracks()[0];
 
-        document.getElementById("status").innerText =
-            "Camera and microphone connected";
+        if (audioTrack) {
+
+            document.getElementById("status").innerText =
+            "🎤 Microphone ON";
+
+        } else {
+
+            document.getElementById("status").innerText =
+            "⚠️ Microphone not available";
+        }
 
     } catch (error) {
 
         document.getElementById("status").innerText =
-            "Camera or microphone permission was denied.";
+        "❌ Camera/Microphone permission denied";
 
         console.log(error);
     }
 }
 
 
-// MUTE / UNMUTE MICROPHONE
+// MUTE
 function toggleMute() {
 
     if (!audioTrack) {
+
+        document.getElementById("status").innerText =
+        "⚠️ No microphone found";
+
         return;
     }
 
     audioTrack.enabled = !audioTrack.enabled;
 
-    const button =
-        document.getElementById("muteButton");
-
     if (audioTrack.enabled) {
 
-        button.innerText = "🎤 Mute";
+        document.getElementById("muteButton").innerText =
+        "🎤 Mute";
+
+        document.getElementById("status").innerText =
+        "🎤 Microphone ON";
 
     } else {
 
-        button.innerText = "🔇 Unmute";
+        document.getElementById("muteButton").innerText =
+        "🔇 Unmute";
+
+        document.getElementById("status").innerText =
+        "🔇 Microphone MUTED";
     }
 }
 
 
-// CAMERA ON / OFF
+// CAMERA
 function toggleCamera() {
 
     if (!videoTrack) {
@@ -143,21 +155,20 @@ function toggleCamera() {
 
     videoTrack.enabled = !videoTrack.enabled;
 
-    const button =
-        document.getElementById("cameraButton");
-
     if (videoTrack.enabled) {
 
-        button.innerText = "📹 Camera";
+        document.getElementById("cameraButton").innerText =
+        "📹 Camera";
 
     } else {
 
-        button.innerText = "📷 Camera Off";
+        document.getElementById("cameraButton").innerText =
+        "📷 Camera Off";
     }
 }
 
 
-// SWITCH FRONT / BACK CAMERA
+// SWITCH CAMERA
 async function switchCamera() {
 
     if (!stream) {
@@ -167,50 +178,42 @@ async function switchCamera() {
     try {
 
         currentCamera =
-            currentCamera === "user"
-            ? "environment"
-            : "user";
-
+        currentCamera === "user"
+        ? "environment"
+        : "user";
 
         const newStream =
-            await navigator.mediaDevices.getUserMedia({
+        await navigator.mediaDevices.getUserMedia({
 
-                video: {
-                    facingMode: currentCamera
-                },
+            video: {
+                facingMode: currentCamera
+            },
 
-                audio: true
-            });
-
+            audio: true
+        });
 
         stream.getTracks().forEach(function(track) {
             track.stop();
         });
 
-
         stream = newStream;
 
-
         document.getElementById("localVideo").srcObject =
-            stream;
-
+        stream;
 
         videoTrack =
-            stream.getVideoTracks()[0];
-
+        stream.getVideoTracks()[0];
 
         audioTrack =
-            stream.getAudioTracks()[0];
-
+        stream.getAudioTracks()[0];
 
         document.getElementById("status").innerText =
-            "Camera switched";
-
+        "🎤 Microphone ON";
 
     } catch (error) {
 
         document.getElementById("status").innerText =
-            "Unable to switch camera.";
+        "❌ Unable to switch camera";
 
         console.log(error);
     }
