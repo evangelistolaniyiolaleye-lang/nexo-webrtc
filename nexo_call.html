@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nexo Call</title>
+
+<style>
+body {
+  margin: 0;
+  background: #111;
+  color: white;
+  text-align: center;
+  font-family: Arial;
+}
+
+video {
+  width: 100%;
+  max-height: 70vh;
+  background: black;
+}
+
+button {
+  padding: 12px;
+  margin: 5px;
+  border: none;
+  border-radius: 10px;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Nexo Call</h2>
+
+<video id="localVideo" autoplay playsinline></video>
+
+<div>
+  <button onclick="toggleMute()">🎤 Mute</button>
+  <button onclick="toggleCamera()">📹 Camera</button>
+  <button onclick="switchCamera()">🔄 Switch</button>
+</div>
+
+<script>
+
+let stream;
+let videoTrack;
+let audioTrack;
+let currentCamera = "user";
+
+async function startCall() {
+
+  stream = await navigator.mediaDevices.getUserMedia({
+    video: true,
+    audio: true
+  });
+
+  document.getElementById("localVideo").srcObject = stream;
+
+  videoTrack = stream.getVideoTracks()[0];
+  audioTrack = stream.getAudioTracks()[0];
+}
+
+async function toggleMute() {
+  if (!audioTrack) return;
+
+  audioTrack.enabled = !audioTrack.enabled;
+}
+
+async function toggleCamera() {
+  if (!videoTrack) return;
+
+  videoTrack.enabled = !videoTrack.enabled;
+}
+
+async function switchCamera() {
+
+  currentCamera =
+    currentCamera === "user" ? "environment" : "user";
+
+  stream.getTracks().forEach(track => track.stop());
+
+  stream = await navigator.mediaDevices.getUserMedia({
+    video: {
+      facingMode: currentCamera
+    },
+    audio: true
+  });
+
+  document.getElementById("localVideo").srcObject = stream;
+
+  videoTrack = stream.getVideoTracks()[0];
+  audioTrack = stream.getAudioTracks()[0];
+}
+
+startCall();
+
+</script>
+
+</body>
+</html>
