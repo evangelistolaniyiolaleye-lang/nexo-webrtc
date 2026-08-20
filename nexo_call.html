@@ -1,14 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0">
 
 <title>Nexo Calling</title>
 
 <style>
+
 body {
     margin: 0;
+    padding: 0;
     background: #111;
     color: white;
     font-family: Arial, sans-serif;
@@ -19,10 +25,11 @@ h2 {
     margin: 15px;
 }
 
-video {
+#localVideo {
     width: 100%;
-    max-height: 60vh;
+    height: 60vh;
     background: black;
+    object-fit: cover;
 }
 
 #status {
@@ -30,37 +37,53 @@ video {
     font-size: 15px;
 }
 
+.controls {
+    padding: 10px;
+}
+
 button {
-    padding: 12px;
+    padding: 12px 14px;
     margin: 5px;
     border: none;
     border-radius: 10px;
     font-size: 15px;
 }
+
 </style>
+
 </head>
 
 <body>
 
 <h2>📞 Nexo Calling</h2>
 
-<video id="localVideo" autoplay playsinline muted></video>
+<video
+    id="localVideo"
+    autoplay
+    playsinline
+    muted>
+</video>
 
 <div id="status">
 Starting camera and microphone...
 </div>
 
-<div>
+<div class="controls">
 
-<button id="muteButton" onclick="toggleMute()">
+<button
+    id="muteButton"
+    onclick="toggleMute()">
 🎤 Mute
 </button>
 
-<button id="cameraButton" onclick="toggleCamera()">
+<button
+    id="cameraButton"
+    onclick="toggleCamera()">
 📹 Camera
 </button>
 
-<button onclick="switchCamera()">
+<button
+    onclick="switchCamera()">
 🔄 Switch Camera
 </button>
 
@@ -69,161 +92,280 @@ Starting camera and microphone...
 <script>
 
 let stream = null;
+
 let videoTrack = null;
+
 let audioTrack = null;
 
 let currentCamera = "user";
 
 
-// START CAMERA + MICROPHONE
+// ======================================
+// START CAMERA AND MICROPHONE
+// ======================================
+
 async function startCall() {
 
     try {
 
-        stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                facingMode: currentCamera
-            },
-            audio: true
-        });
+        stream =
+            await navigator.mediaDevices.getUserMedia({
 
-        document.getElementById("localVideo").srcObject = stream;
+                video: {
+                    facingMode: currentCamera
+                },
 
-        videoTrack = stream.getVideoTracks()[0];
+                audio: true
 
-        audioTrack = stream.getAudioTracks()[0];
+            });
+
+
+        document
+            .getElementById("localVideo")
+            .srcObject = stream;
+
+
+        videoTrack =
+            stream.getVideoTracks()[0];
+
+
+        audioTrack =
+            stream.getAudioTracks()[0];
+
 
         if (audioTrack) {
 
-            document.getElementById("status").innerText =
-            "🎤 Microphone ON";
+            document
+                .getElementById("status")
+                .innerText =
+                "🎤 Microphone ON";
 
-        } else {
-
-            document.getElementById("status").innerText =
-            "⚠️ Microphone not available";
         }
 
-    } catch (error) {
+    }
 
-        document.getElementById("status").innerText =
-        "❌ Camera/Microphone permission denied";
+    catch (error) {
+
+        document
+            .getElementById("status")
+            .innerText =
+            "❌ Camera or microphone permission denied.";
 
         console.log(error);
+
     }
+
 }
 
 
-// MUTE
+// ======================================
+// MUTE / UNMUTE
+// ======================================
+
 function toggleMute() {
 
     if (!audioTrack) {
 
-        document.getElementById("status").innerText =
-        "⚠️ No microphone found";
+        document
+            .getElementById("status")
+            .innerText =
+            "⚠️ Microphone not available";
 
         return;
+
     }
 
-    audioTrack.enabled = !audioTrack.enabled;
+
+    audioTrack.enabled =
+        !audioTrack.enabled;
+
 
     if (audioTrack.enabled) {
 
-        document.getElementById("muteButton").innerText =
-        "🎤 Mute";
+        document
+            .getElementById("muteButton")
+            .innerText =
+            "🎤 Mute";
 
-        document.getElementById("status").innerText =
-        "🎤 Microphone ON";
 
-    } else {
+        document
+            .getElementById("status")
+            .innerText =
+            "🎤 Microphone ON";
 
-        document.getElementById("muteButton").innerText =
-        "🔇 Unmute";
-
-        document.getElementById("status").innerText =
-        "🔇 Microphone MUTED";
     }
+
+    else {
+
+        document
+            .getElementById("muteButton")
+            .innerText =
+            "🔇 Unmute";
+
+
+        document
+            .getElementById("status")
+            .innerText =
+            "🔇 Microphone MUTED";
+
+    }
+
 }
 
 
-// CAMERA
+// ======================================
+// CAMERA ON / OFF
+// ======================================
+
 function toggleCamera() {
 
     if (!videoTrack) {
+
         return;
+
     }
 
-    videoTrack.enabled = !videoTrack.enabled;
+
+    videoTrack.enabled =
+        !videoTrack.enabled;
+
 
     if (videoTrack.enabled) {
 
-        document.getElementById("cameraButton").innerText =
-        "📹 Camera";
+        document
+            .getElementById("cameraButton")
+            .innerText =
+            "📹 Camera";
 
-    } else {
 
-        document.getElementById("cameraButton").innerText =
-        "📷 Camera Off";
     }
+
+    else {
+
+        document
+            .getElementById("cameraButton")
+            .innerText =
+            "📷 Camera Off";
+
+    }
+
 }
 
 
-// SWITCH CAMERA
+// ======================================
+// SWITCH FRONT / BACK CAMERA
+// ======================================
+
 async function switchCamera() {
 
     if (!stream) {
+
         return;
+
     }
+
 
     try {
 
         currentCamera =
-        currentCamera === "user"
-        ? "environment"
-        : "user";
+            currentCamera === "user"
+            ? "environment"
+            : "user";
 
-        const newStream =
-        await navigator.mediaDevices.getUserMedia({
 
-            video: {
-                facingMode: currentCamera
-            },
+        const newVideoStream =
+            await navigator.mediaDevices
+            .getUserMedia({
 
-            audio: true
-        });
+                video: {
+                    facingMode:
+                    currentCamera
+                },
 
-        stream.getTracks().forEach(function(track) {
-            track.stop();
-        });
+                audio: false
 
-        stream = newStream;
+            });
 
-        document.getElementById("localVideo").srcObject =
-        stream;
+
+        const newVideoTrack =
+            newVideoStream
+            .getVideoTracks()[0];
+
+
+        const oldVideoTrack =
+            stream
+            .getVideoTracks()[0];
+
+
+        if (oldVideoTrack) {
+
+            oldVideoTrack.stop();
+
+            stream.removeTrack(
+                oldVideoTrack
+            );
+
+        }
+
+
+        stream.addTrack(
+            newVideoTrack
+        );
+
 
         videoTrack =
-        stream.getVideoTracks()[0];
+            newVideoTrack;
 
-        audioTrack =
-        stream.getAudioTracks()[0];
 
-        document.getElementById("status").innerText =
-        "🎤 Microphone ON";
+        document
+            .getElementById("localVideo")
+            .srcObject =
+            stream;
 
-    } catch (error) {
 
-        document.getElementById("status").innerText =
-        "❌ Unable to switch camera";
+        if (audioTrack &&
+            audioTrack.enabled) {
+
+            document
+                .getElementById("status")
+                .innerText =
+                "🎤 Microphone ON";
+
+        }
+
+        else {
+
+            document
+                .getElementById("status")
+                .innerText =
+                "🔇 Microphone MUTED";
+
+        }
+
+    }
+
+    catch (error) {
+
+        document
+            .getElementById("status")
+            .innerText =
+            "❌ Unable to switch camera";
 
         console.log(error);
+
     }
+
 }
 
 
-// START
+// ======================================
+// START NEXO CALL PAGE
+// ======================================
+
 startCall();
 
 </script>
 
 </body>
+
 </html>
