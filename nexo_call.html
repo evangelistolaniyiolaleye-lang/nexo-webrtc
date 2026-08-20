@@ -1,96 +1,223 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nexo Call</title>
+
+<title>Nexo Calling</title>
 
 <style>
-body {
-  margin: 0;
-  background: #111;
-  color: white;
-  text-align: center;
-  font-family: Arial;
-}
+    body {
+        margin: 0;
+        padding: 0;
+        background: #111;
+        color: white;
+        font-family: Arial, sans-serif;
+        text-align: center;
+    }
 
-video {
-  width: 100%;
-  max-height: 70vh;
-  background: black;
-}
+    h2 {
+        margin: 15px 0;
+    }
 
-button {
-  padding: 12px;
-  margin: 5px;
-  border: none;
-  border-radius: 10px;
-}
+    #localVideo {
+        width: 100%;
+        max-height: 65vh;
+        background: black;
+        object-fit: cover;
+    }
+
+    .controls {
+        padding: 15px 5px;
+    }
+
+    button {
+        padding: 12px 14px;
+        margin: 5px;
+        border: none;
+        border-radius: 10px;
+        font-size: 15px;
+    }
+
+    #status {
+        margin: 10px;
+        font-size: 14px;
+    }
 </style>
 </head>
 
 <body>
 
-<h2>Nexo Call</h2>
+<h2>📞 Nexo Calling</h2>
 
-<video id="localVideo" autoplay playsinline></video>
+<video id="localVideo" autoplay playsinline muted></video>
 
-<button id="muteButton" onclick="toggleMute()">🎤 Mute</button>
-  <button onclick="toggleCamera()">📹 Camera</button>
-  <button onclick="switchCamera()">🔄 Switch</button>
+<div id="status">
+    Connecting to camera and microphone...
+</div>
+
+<div class="controls">
+
+    <button id="muteButton" onclick="toggleMute()">
+        🎤 Mute
+    </button>
+
+    <button id="cameraButton" onclick="toggleCamera()">
+        📹 Camera
+    </button>
+
+    <button onclick="switchCamera()">
+        🔄 Switch Camera
+    </button>
+
 </div>
 
 <script>
 
-let stream;
-let videoTrack;
-let audioTrack;
+let stream = null;
+let videoTrack = null;
+let audioTrack = null;
+
 let currentCamera = "user";
 
+
+// START CAMERA AND MICROPHONE
 async function startCall() {
 
-  stream = await navigator.mediaDevices.getUserMedia({
-    video: true,
-    audio: true
-  });
+    try {
 
-  document.getElementById("localVideo").srcObject = stream;
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: currentCamera
+            },
+            audio: true
+        });
 
-  videoTrack = stream.getVideoTracks()[0];
-  audioTrack = stream.getAudioTracks()[0];
+        document.getElementById("localVideo").srcObject = stream;
+
+        videoTrack = stream.getVideoTracks()[0];
+        audioTrack = stream.getAudioTracks()[0];
+
+        document.getElementById("status").innerText =
+            "Camera and microphone connected";
+
+    } catch (error) {
+
+        document.getElementById("status").innerText =
+            "Camera or microphone permission was denied.";
+
+        console.log(error);
+    }
 }
 
-async function toggleMute() {
-  if (!audioTrack) return;
 
-  audioTrack.enabled = !audioTrack.enabled;
+// MUTE / UNMUTE MICROPHONE
+function toggleMute() {
+
+    if (!audioTrack) {
+        return;
+    }
+
+    audioTrack.enabled = !audioTrack.enabled;
+
+    const button =
+        document.getElementById("muteButton");
+
+    if (audioTrack.enabled) {
+
+        button.innerText = "🎤 Mute";
+
+    } else {
+
+        button.innerText = "🔇 Unmute";
+    }
 }
 
-async function toggleCamera() {
-  if (!videoTrack) return;
 
-  videoTrack.enabled = !videoTrack.enabled;
+// CAMERA ON / OFF
+function toggleCamera() {
+
+    if (!videoTrack) {
+        return;
+    }
+
+    videoTrack.enabled = !videoTrack.enabled;
+
+    const button =
+        document.getElementById("cameraButton");
+
+    if (videoTrack.enabled) {
+
+        button.innerText = "📹 Camera";
+
+    } else {
+
+        button.innerText = "📷 Camera Off";
+    }
 }
 
+
+// SWITCH FRONT / BACK CAMERA
 async function switchCamera() {
 
-  currentCamera =
-    currentCamera === "user" ? "environment" : "user";
+    if (!stream) {
+        return;
+    }
 
-  stream.getTracks().forEach(track => track.stop());
+    try {
 
-  stream = await navigator.mediaDevices.getUserMedia({
-    video: {
-      facingMode: currentCamera
-    },
-    audio: true
-  });
+        currentCamera =
+            currentCamera === "user"
+            ? "environment"
+            : "user";
 
-  document.getElementById("localVideo").srcObject = stream;
 
-  videoTrack = stream.getVideoTracks()[0];
-  audioTrack = stream.getAudioTracks()[0];
+        const newStream =
+            await navigator.mediaDevices.getUserMedia({
+
+                video: {
+                    facingMode: currentCamera
+                },
+
+                audio: true
+            });
+
+
+        stream.getTracks().forEach(function(track) {
+            track.stop();
+        });
+
+
+        stream = newStream;
+
+
+        document.getElementById("localVideo").srcObject =
+            stream;
+
+
+        videoTrack =
+            stream.getVideoTracks()[0];
+
+
+        audioTrack =
+            stream.getAudioTracks()[0];
+
+
+        document.getElementById("status").innerText =
+            "Camera switched";
+
+
+    } catch (error) {
+
+        document.getElementById("status").innerText =
+            "Unable to switch camera.";
+
+        console.log(error);
+    }
 }
 
+
+// START
 startCall();
 
 </script>
