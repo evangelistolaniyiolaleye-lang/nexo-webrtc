@@ -1,10 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>Nexo Call</title>
 
 <style>
+
 body {
   margin: 0;
   background: #111;
@@ -15,7 +18,7 @@ body {
 
 video {
   width: 100%;
-  max-height: 70vh;
+  max-height: 40vh;
   background: black;
 }
 
@@ -24,139 +27,634 @@ button {
   margin: 5px;
   border: none;
   border-radius: 10px;
+  font-size: 15px;
 }
 
 #status {
-  margin: 10px;
-  font-size: 14px;
+  margin: 12px;
 }
+
+#remoteBox {
+  display: none;
+}
+
 </style>
+
 </head>
 
 <body>
 
 <h2>📞 Nexo Call</h2>
 
-<video id="localVideo" autoplay playsinline></video>
-
 <div id="status">
-🎤 Microphone ON
+Ready to call
 </div>
 
 <div>
 
-  <button id="muteButton" onclick="toggleMute()">
-    🎤 Mute
-  </button>
-
-  <button onclick="toggleCamera()">
-    📹 Camera
-  </button>
-
-  <button onclick="switchCamera()">
-    🔄 Switch
-  </button>
+<button onclick="startNexoCall()">
+📞 Call
+</button>
 
 </div>
 
-<script>
+<h3>My Video</h3>
 
-let stream;
-let videoTrack;
-let audioTrack;
+<video
+id="localVideo"
+autoplay
+playsinline
+muted>
+</video>
+
+
+<div id="remoteBox">
+
+<h3>Other User</h3>
+
+<video
+id="remoteVideo"
+autoplay
+playsinline>
+</video>
+
+</div>
+
+
+<div>
+
+<button
+id="muteButton"
+onclick="toggleMute()">
+🎤 Mute
+</button>
+
+<button
+id="cameraButton"
+onclick="toggleCamera()">
+📹 Camera
+</button>
+
+<button
+onclick="switchCamera()">
+🔄 Switch
+</button>
+
+<button
+onclick="endCall()">
+📞 End Call
+</button>
+
+</div>
+
+
+<script type="module">
+
+
+/* =====================================
+   FIREBASE
+===================================== */
+
+import { initializeApp }
+
+from
+"https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+
+
+import {
+
+  getDatabase,
+  ref,
+  set,
+  get,
+  onValue,
+  push,
+  remove
+
+}
+
+from
+"https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+
+
+const firebaseConfig = {
+
+  apiKey:
+  "AIzaSyAqnRQtBesAGrShPQ89A_abqi6Wejuup8I",
+
+  authDomain:
+  "nexoapp-adb97.firebaseapp.com",
+
+  databaseURL:
+  "https://nexoapp-adb97-default-rtdb.firebaseio.com",
+
+  projectId:
+  "nexoapp-adb97",
+
+  storageBucket:
+  "nexoapp-adb97.firebasestorage.app",
+
+  messagingSenderId:
+  "694321952953",
+
+  appId:
+  "1:694321952953:web:0b62ae562b07dd9f960368"
+
+};
+
+
+const app =
+initializeApp(firebaseConfig);
+
+
+const db =
+getDatabase(app);
+
+
+/* =====================================
+   VARIABLES
+===================================== */
+
+let stream = null;
+
+let videoTrack = null;
+
+let audioTrack = null;
+
 let currentCamera = "user";
 
+let peerConnection = null;
 
-// START CAMERA + MICROPHONE
-async function startCall() {
+let callId = null;
 
-  stream = await navigator.mediaDevices.getUserMedia({
+
+/* =====================================
+   WEBRTC
+===================================== */
+
+const configuration = {
+
+  iceServers: [
+
+    {
+      urls:
+      "stun:stun.l.google.com:19302"
+    }
+
+  ]
+
+};
+
+
+/* =====================================
+   START CAMERA
+===================================== */
+
+async function startCamera() {
+
+  if (stream) return;
+
+
+  stream =
+  await navigator.mediaDevices
+  .getUserMedia({
+
     video: true,
+
     audio: true
+
   });
 
-  document.getElementById("localVideo").srcObject = stream;
 
-  videoTrack = stream.getVideoTracks()[0];
+  document
+  .getElementById("localVideo")
+  .srcObject =
+  stream;
 
-  audioTrack = stream.getAudioTracks()[0];
+
+  videoTrack =
+  stream.getVideoTracks()[0];
+
+
+  audioTrack =
+  stream.getAudioTracks()[0];
+
+
+  document
+  .getElementById("status")
+  .innerText =
+  "🎤 Microphone ON";
 
 }
 
 
-// MUTE / UNMUTE
-function toggleMute() {
+/* =====================================
+   MUTE
+===================================== */
+
+window.toggleMute = function() {
 
   if (!audioTrack) return;
 
-  audioTrack.enabled = !audioTrack.enabled;
+
+  audioTrack.enabled =
+  !audioTrack.enabled;
+
 
   if (audioTrack.enabled) {
 
-    document.getElementById("muteButton").innerText =
-      "🎤 Mute";
+    document
+    .getElementById("muteButton")
+    .innerText =
+    "🎤 Mute";
 
-    document.getElementById("status").innerText =
-      "🎤 Microphone ON";
 
-  } else {
-
-    document.getElementById("muteButton").innerText =
-      "🔇 Unmute";
-
-    document.getElementById("status").innerText =
-      "🔇 Microphone MUTED";
+    document
+    .getElementById("status")
+    .innerText =
+    "🎤 Microphone ON";
 
   }
 
-}
+  else {
+
+    document
+    .getElementById("muteButton")
+    .innerText =
+    "🔇 Unmute";
 
 
-// CAMERA ON / OFF
-function toggleCamera() {
+    document
+    .getElementById("status")
+    .innerText =
+    "🔇 Microphone MUTED";
+
+  }
+
+};
+
+
+/* =====================================
+   CAMERA ON / OFF
+===================================== */
+
+window.toggleCamera = function() {
 
   if (!videoTrack) return;
 
-  videoTrack.enabled = !videoTrack.enabled;
 
-}
+  videoTrack.enabled =
+  !videoTrack.enabled;
 
 
-// SWITCH CAMERA
-async function switchCamera() {
+  if (videoTrack.enabled) {
+
+    document
+    .getElementById("cameraButton")
+    .innerText =
+    "📹 Camera";
+
+  }
+
+  else {
+
+    document
+    .getElementById("cameraButton")
+    .innerText =
+    "📷 Camera Off";
+
+  }
+
+};
+
+
+/* =====================================
+   SWITCH CAMERA
+===================================== */
+
+window.switchCamera = async function() {
 
   currentCamera =
-    currentCamera === "user"
-    ? "environment"
-    : "user";
+  currentCamera === "user"
+  ? "environment"
+  : "user";
 
-  stream.getTracks().forEach(track => track.stop());
+
+  const newStream =
+  await navigator.mediaDevices
+  .getUserMedia({
+
+    video: {
+
+      facingMode:
+      currentCamera
+
+    },
+
+    audio: true
+
+  });
+
+
+  document
+  .getElementById("localVideo")
+  .srcObject =
+  newStream;
+
+
+  if (stream) {
+
+    stream
+    .getTracks()
+    .forEach(track =>
+      track.stop()
+    );
+
+  }
+
 
   stream =
-    await navigator.mediaDevices.getUserMedia({
+  newStream;
 
-      video: {
-        facingMode: currentCamera
-      },
-
-      audio: true
-
-    });
-
-  document.getElementById("localVideo").srcObject =
-    stream;
 
   videoTrack =
-    stream.getVideoTracks()[0];
+  stream.getVideoTracks()[0];
+
 
   audioTrack =
-    stream.getAudioTracks()[0];
+  stream.getAudioTracks()[0];
+
+};
+
+
+/* =====================================
+   CREATE PEER CONNECTION
+===================================== */
+
+function createPeer() {
+
+  peerConnection =
+  new RTCPeerConnection(
+    configuration
+  );
+
+
+  stream
+  .getTracks()
+  .forEach(track => {
+
+    peerConnection.addTrack(
+      track,
+      stream
+    );
+
+  });
+
+
+  peerConnection.ontrack =
+  function(event) {
+
+    document
+    .getElementById("remoteBox")
+    .style.display =
+    "block";
+
+
+    document
+    .getElementById("remoteVideo")
+    .srcObject =
+    event.streams[0];
+
+  };
+
+
+  peerConnection.onconnectionstatechange =
+  function() {
+
+    if (
+      peerConnection.connectionState ===
+      "connected"
+    ) {
+
+      document
+      .getElementById("status")
+      .innerText =
+      "✅ Nexo call connected";
+
+    }
+
+  };
 
 }
 
 
-// START
-startCall();
+/* =====================================
+   CREATE CALL AUTOMATICALLY
+===================================== */
+
+window.startNexoCall = async function() {
+
+  try {
+
+    await startCamera();
+
+
+    callId =
+      "call_" +
+      Date.now() +
+      "_" +
+      Math.random()
+      .toString(36)
+      .substring(2, 8);
+
+
+    createPeer();
+
+
+    document
+    .getElementById("status")
+    .innerText =
+    "📞 Creating Nexo call...";
+
+
+    const offer =
+    await peerConnection
+    .createOffer();
+
+
+    await peerConnection
+    .setLocalDescription(
+      offer
+    );
+
+
+    await set(
+
+      ref(
+        db,
+        "calls/" +
+        callId
+      ),
+
+      {
+
+        offer: {
+
+          type:
+          offer.type,
+
+          sdp:
+          offer.sdp
+
+        },
+
+        status:
+        "calling",
+
+        createdAt:
+        Date.now()
+
+      }
+
+    );
+
+
+    document
+    .getElementById("status")
+    .innerText =
+    "📞 Nexo call created";
+
+
+    console.log(
+      "Nexo Call ID:",
+      callId
+    );
+
+
+    onValue(
+
+      ref(
+        db,
+        "calls/" +
+        callId +
+        "/answer"
+      ),
+
+      async function(snapshot) {
+
+        const answer =
+        snapshot.val();
+
+
+        if (
+          answer &&
+          !peerConnection
+          .currentRemoteDescription
+        ) {
+
+          await peerConnection
+          .setRemoteDescription(
+            answer
+          );
+
+
+          document
+          .getElementById("status")
+          .innerText =
+          "✅ Connected";
+
+        }
+
+      }
+
+    );
+
+  }
+
+  catch(error) {
+
+    console.log(error);
+
+    document
+    .getElementById("status")
+    .innerText =
+    "❌ Unable to start call";
+
+  }
+
+};
+
+
+/* =====================================
+   END CALL
+===================================== */
+
+window.endCall = async function() {
+
+  if (peerConnection) {
+
+    peerConnection.close();
+
+    peerConnection =
+    null;
+
+  }
+
+
+  if (stream) {
+
+    stream
+    .getTracks()
+    .forEach(track =>
+      track.stop()
+    );
+
+    stream =
+    null;
+
+  }
+
+
+  if (callId) {
+
+    await remove(
+
+      ref(
+        db,
+        "calls/" +
+        callId
+      )
+
+    );
+
+  }
+
+
+  document
+  .getElementById("localVideo")
+  .srcObject =
+  null;
+
+
+  document
+  .getElementById("remoteVideo")
+  .srcObject =
+  null;
+
+
+  document
+  .getElementById("remoteBox")
+  .style.display =
+  "none";
+
+
+  document
+  .getElementById("status")
+  .innerText =
+  "Call ended";
+
+};
+
 
 </script>
 
