@@ -1,340 +1,164 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html>
 <head>
-
-<meta charset="UTF-8">
-
-<meta name="viewport"
-content="width=device-width, initial-scale=1.0">
-
-<title>Nexo Calling</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nexo Call</title>
 
 <style>
-
 body {
-    margin: 0;
-    padding: 0;
-    background: #111;
-    color: white;
-    font-family: Arial, sans-serif;
-    text-align: center;
+  margin: 0;
+  background: #111;
+  color: white;
+  text-align: center;
+  font-family: Arial;
 }
 
-h2 {
-    margin: 15px 0;
-}
-
-#localVideo {
-    width: 100%;
-    max-height: 65vh;
-    background: black;
-    object-fit: cover;
-}
-
-#status {
-    margin: 10px;
-    font-size: 14px;
+video {
+  width: 100%;
+  max-height: 70vh;
+  background: black;
 }
 
 button {
-    padding: 12px 14px;
-    margin: 5px;
-    border: none;
-    border-radius: 10px;
-    font-size: 15px;
+  padding: 12px;
+  margin: 5px;
+  border: none;
+  border-radius: 10px;
 }
 
+#status {
+  margin: 10px;
+  font-size: 14px;
+}
 </style>
-
 </head>
 
 <body>
 
-<h2>📞 Nexo Calling</h2>
+<h2>📞 Nexo Call</h2>
 
-<video
-id="localVideo"
-autoplay
-playsinline>
-</video>
+<video id="localVideo" autoplay playsinline></video>
 
 <div id="status">
-Connecting to camera and microphone...
+🎤 Microphone ON
 </div>
 
 <div>
 
-<button
-id="muteButton"
-onclick="toggleMute()">
-🎤 Mute
-</button>
+  <button id="muteButton" onclick="toggleMute()">
+    🎤 Mute
+  </button>
 
-<button
-id="cameraButton"
-onclick="toggleCamera()">
-📹 Camera
-</button>
+  <button onclick="toggleCamera()">
+    📹 Camera
+  </button>
 
-<button
-onclick="switchCamera()">
-🔄 Switch Camera
-</button>
+  <button onclick="switchCamera()">
+    🔄 Switch
+  </button>
 
 </div>
-
 
 <script>
 
 let stream;
-
 let videoTrack;
-
 let audioTrack;
-
 let currentCamera = "user";
 
 
-// ======================================
-// START CAMERA AND MICROPHONE
-// ======================================
-
+// START CAMERA + MICROPHONE
 async function startCall() {
 
-    try {
+  stream = await navigator.mediaDevices.getUserMedia({
+    video: true,
+    audio: true
+  });
 
-        stream =
-        await navigator.mediaDevices.getUserMedia({
+  document.getElementById("localVideo").srcObject = stream;
 
-            video: true,
+  videoTrack = stream.getVideoTracks()[0];
 
-            audio: true
-
-        });
-
-
-        document
-        .getElementById("localVideo")
-        .srcObject = stream;
-
-
-        videoTrack =
-        stream.getVideoTracks()[0];
-
-
-        audioTrack =
-        stream.getAudioTracks()[0];
-
-
-        document
-        .getElementById("status")
-        .innerText =
-        "🎤 Microphone ON";
-
-
-    }
-
-    catch (error) {
-
-        document
-        .getElementById("status")
-        .innerText =
-        "❌ Camera or microphone permission denied.";
-
-        console.log(error);
-
-    }
+  audioTrack = stream.getAudioTracks()[0];
 
 }
 
 
-// ======================================
 // MUTE / UNMUTE
-// ======================================
-
 function toggleMute() {
 
-    if (!audioTrack) {
+  if (!audioTrack) return;
 
-        document
-        .getElementById("status")
-        .innerText =
-        "⚠️ Microphone not available";
+  audioTrack.enabled = !audioTrack.enabled;
 
-        return;
+  if (audioTrack.enabled) {
 
-    }
+    document.getElementById("muteButton").innerText =
+      "🎤 Mute";
 
+    document.getElementById("status").innerText =
+      "🎤 Microphone ON";
 
-    audioTrack.enabled =
-    !audioTrack.enabled;
+  } else {
 
+    document.getElementById("muteButton").innerText =
+      "🔇 Unmute";
 
-    if (audioTrack.enabled) {
+    document.getElementById("status").innerText =
+      "🔇 Microphone MUTED";
 
-        document
-        .getElementById("muteButton")
-        .innerText =
-        "🎤 Mute";
-
-
-        document
-        .getElementById("status")
-        .innerText =
-        "🎤 Microphone ON";
-
-    }
-
-    else {
-
-        document
-        .getElementById("muteButton")
-        .innerText =
-        "🔇 Unmute";
-
-
-        document
-        .getElementById("status")
-        .innerText =
-        "🔇 Microphone MUTED";
-
-    }
+  }
 
 }
 
 
-// ======================================
 // CAMERA ON / OFF
-// ======================================
-
 function toggleCamera() {
 
-    if (!videoTrack) {
+  if (!videoTrack) return;
 
-        return;
-
-    }
-
-
-    videoTrack.enabled =
-    !videoTrack.enabled;
-
-
-    if (videoTrack.enabled) {
-
-        document
-        .getElementById("cameraButton")
-        .innerText =
-        "📹 Camera";
-
-    }
-
-    else {
-
-        document
-        .getElementById("cameraButton")
-        .innerText =
-        "📷 Camera Off";
-
-    }
+  videoTrack.enabled = !videoTrack.enabled;
 
 }
 
 
-// ======================================
 // SWITCH CAMERA
-// ======================================
-
 async function switchCamera() {
 
-    if (!stream) {
+  currentCamera =
+    currentCamera === "user"
+    ? "environment"
+    : "user";
 
-        return;
+  stream.getTracks().forEach(track => track.stop());
 
-    }
+  stream =
+    await navigator.mediaDevices.getUserMedia({
 
+      video: {
+        facingMode: currentCamera
+      },
 
-    try {
+      audio: true
 
-        currentCamera =
-        currentCamera === "user"
-        ? "environment"
-        : "user";
+    });
 
+  document.getElementById("localVideo").srcObject =
+    stream;
 
-        const newStream =
-        await navigator.mediaDevices.getUserMedia({
+  videoTrack =
+    stream.getVideoTracks()[0];
 
-            video: {
-
-                facingMode:
-                currentCamera
-
-            },
-
-            audio: true
-
-        });
-
-
-        document
-        .getElementById("localVideo")
-        .srcObject =
-        newStream;
-
-
-        stream
-        .getTracks()
-        .forEach(function(track) {
-
-            track.stop();
-
-        });
-
-
-        stream =
-        newStream;
-
-
-        videoTrack =
-        stream.getVideoTracks()[0];
-
-
-        audioTrack =
-        stream.getAudioTracks()[0];
-
-
-        document
-        .getElementById("status")
-        .innerText =
-        "🎤 Microphone ON";
-
-
-    }
-
-    catch (error) {
-
-        document
-        .getElementById("status")
-        .innerText =
-        "❌ Unable to switch camera";
-
-        console.log(error);
-
-    }
+  audioTrack =
+    stream.getAudioTracks()[0];
 
 }
 
 
-// ======================================
 // START
-// ======================================
-
 startCall();
 
 </script>
 
 </body>
-
 </html>
