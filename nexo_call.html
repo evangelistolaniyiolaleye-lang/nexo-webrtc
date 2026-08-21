@@ -18,7 +18,7 @@ body {
 
 video {
   width: 100%;
-  max-height: 40vh;
+  max-height: 70vh;
   background: black;
 }
 
@@ -27,15 +27,11 @@ button {
   margin: 5px;
   border: none;
   border-radius: 10px;
-  font-size: 15px;
 }
 
 #status {
-  margin: 12px;
-}
-
-#remoteBox {
-  display: none;
+  margin: 10px;
+  font-size: 14px;
 }
 
 </style>
@@ -46,96 +42,54 @@ button {
 
 <h2>📞 Nexo Call</h2>
 
-<div id="status">
-Ready to call
-</div>
-
-<div>
-
-<button onclick="startNexoCall()">
-📞 Call
-</button>
-
-</div>
-
-<h3>My Video</h3>
-
 <video
 id="localVideo"
-autoplay
-playsinline
-muted>
-</video>
-
-
-<div id="remoteBox">
-
-<h3>Other User</h3>
-
-<video
-id="remoteVideo"
 autoplay
 playsinline>
 </video>
 
+<div id="status">
+🎤 Microphone ON
 </div>
-
 
 <div>
 
-<button
-id="muteButton"
-onclick="toggleMute()">
-🎤 Mute
-</button>
+  <button onclick="startNexoCall()">
+    📞 Call
+  </button>
 
-<button
-id="cameraButton"
-onclick="toggleCamera()">
-📹 Camera
-</button>
+  <button onclick="toggleMute()" id="muteButton">
+    🎤 Mute
+  </button>
 
-<button
-onclick="switchCamera()">
-🔄 Switch
-</button>
+  <button onclick="toggleCamera()">
+    📹 Camera
+  </button>
 
-<button
-onclick="endCall()">
-📞 End Call
-</button>
+  <button onclick="switchCamera()">
+    🔄 Switch
+  </button>
+
+  <button onclick="endNexoCall()">
+    📞 End Call
+  </button>
 
 </div>
 
 
-<script type="module">
+<!-- Firebase -->
+
+<script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-app-compat.js"></script>
+
+<script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-database-compat.js"></script>
 
 
-/* =====================================
-   FIREBASE
-===================================== */
-
-import { initializeApp }
-
-from
-"https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+<script>
 
 
-import {
-
-  getDatabase,
-  ref,
-  set,
-  get,
-  onValue,
-  push,
-  remove
-
-}
-
-from
-"https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
-
+// ========================================
+// FIREBASE
+// ========================================
 
 const firebaseConfig = {
 
@@ -163,61 +117,37 @@ const firebaseConfig = {
 };
 
 
-const app =
-initializeApp(firebaseConfig);
+firebase.initializeApp(firebaseConfig);
+
+const database =
+firebase.database();
 
 
-const db =
-getDatabase(app);
+// ========================================
+// ORIGINAL VARIABLES
+// ========================================
 
-
-/* =====================================
-   VARIABLES
-===================================== */
-
-let stream = null;
-
-let videoTrack = null;
-
-let audioTrack = null;
-
+let stream;
+let videoTrack;
+let audioTrack;
 let currentCamera = "user";
 
-let peerConnection = null;
+
+// ========================================
+// CALL VARIABLES
+// ========================================
 
 let callId = null;
 
 
-/* =====================================
-   WEBRTC
-===================================== */
+// ========================================
+// START CAMERA + MICROPHONE
+// ========================================
 
-const configuration = {
-
-  iceServers: [
-
-    {
-      urls:
-      "stun:stun.l.google.com:19302"
-    }
-
-  ]
-
-};
-
-
-/* =====================================
-   START CAMERA
-===================================== */
-
-async function startCamera() {
-
-  if (stream) return;
-
+async function startCall() {
 
   stream =
-  await navigator.mediaDevices
-  .getUserMedia({
+  await navigator.mediaDevices.getUserMedia({
 
     video: true,
 
@@ -228,8 +158,7 @@ async function startCamera() {
 
   document
   .getElementById("localVideo")
-  .srcObject =
-  stream;
+  .srcObject = stream;
 
 
   videoTrack =
@@ -239,20 +168,14 @@ async function startCamera() {
   audioTrack =
   stream.getAudioTracks()[0];
 
-
-  document
-  .getElementById("status")
-  .innerText =
-  "🎤 Microphone ON";
-
 }
 
 
-/* =====================================
-   MUTE
-===================================== */
+// ========================================
+// MUTE / UNMUTE
+// ========================================
 
-window.toggleMute = function() {
+function toggleMute() {
 
   if (!audioTrack) return;
 
@@ -291,14 +214,14 @@ window.toggleMute = function() {
 
   }
 
-};
+}
 
 
-/* =====================================
-   CAMERA ON / OFF
-===================================== */
+// ========================================
+// CAMERA ON / OFF
+// ========================================
 
-window.toggleCamera = function() {
+function toggleCamera() {
 
   if (!videoTrack) return;
 
@@ -306,41 +229,30 @@ window.toggleCamera = function() {
   videoTrack.enabled =
   !videoTrack.enabled;
 
-
-  if (videoTrack.enabled) {
-
-    document
-    .getElementById("cameraButton")
-    .innerText =
-    "📹 Camera";
-
-  }
-
-  else {
-
-    document
-    .getElementById("cameraButton")
-    .innerText =
-    "📷 Camera Off";
-
-  }
-
-};
+}
 
 
-/* =====================================
-   SWITCH CAMERA
-===================================== */
+// ========================================
+// ORIGINAL SWITCH CAMERA
+// DO NOT CHANGE THIS
+// ========================================
 
-window.switchCamera = async function() {
+async function switchCamera() {
 
   currentCamera =
-  currentCamera === "user"
-  ? "environment"
-  : "user";
+    currentCamera === "user"
+    ? "environment"
+    : "user";
 
 
-  const newStream =
+  stream
+  .getTracks()
+  .forEach(track =>
+    track.stop()
+  );
+
+
+  stream =
   await navigator.mediaDevices
   .getUserMedia({
 
@@ -359,22 +271,7 @@ window.switchCamera = async function() {
   document
   .getElementById("localVideo")
   .srcObject =
-  newStream;
-
-
-  if (stream) {
-
-    stream
-    .getTracks()
-    .forEach(track =>
-      track.stop()
-    );
-
-  }
-
-
-  stream =
-  newStream;
+  stream;
 
 
   videoTrack =
@@ -384,79 +281,22 @@ window.switchCamera = async function() {
   audioTrack =
   stream.getAudioTracks()[0];
 
-};
-
-
-/* =====================================
-   CREATE PEER CONNECTION
-===================================== */
-
-function createPeer() {
-
-  peerConnection =
-  new RTCPeerConnection(
-    configuration
-  );
-
-
-  stream
-  .getTracks()
-  .forEach(track => {
-
-    peerConnection.addTrack(
-      track,
-      stream
-    );
-
-  });
-
-
-  peerConnection.ontrack =
-  function(event) {
-
-    document
-    .getElementById("remoteBox")
-    .style.display =
-    "block";
-
-
-    document
-    .getElementById("remoteVideo")
-    .srcObject =
-    event.streams[0];
-
-  };
-
-
-  peerConnection.onconnectionstatechange =
-  function() {
-
-    if (
-      peerConnection.connectionState ===
-      "connected"
-    ) {
-
-      document
-      .getElementById("status")
-      .innerText =
-      "✅ Nexo call connected";
-
-    }
-
-  };
-
 }
 
 
-/* =====================================
-   CREATE CALL AUTOMATICALLY
-===================================== */
+// ========================================
+// AUTOMATIC NEXO CALL
+// ========================================
 
-window.startNexoCall = async function() {
+async function startNexoCall() {
 
   try {
 
-    await startCamera();
+    if (!stream) {
+
+      await startCall();
+
+    }
 
 
     callId =
@@ -468,61 +308,21 @@ window.startNexoCall = async function() {
       .substring(2, 8);
 
 
-    createPeer();
+    await database
+    .ref("calls/" + callId)
+    .set({
+
+      status: "calling",
+
+      createdAt: Date.now()
+
+    });
 
 
     document
     .getElementById("status")
     .innerText =
-    "📞 Creating Nexo call...";
-
-
-    const offer =
-    await peerConnection
-    .createOffer();
-
-
-    await peerConnection
-    .setLocalDescription(
-      offer
-    );
-
-
-    await set(
-
-      ref(
-        db,
-        "calls/" +
-        callId
-      ),
-
-      {
-
-        offer: {
-
-          type:
-          offer.type,
-
-          sdp:
-          offer.sdp
-
-        },
-
-        status:
-        "calling",
-
-        createdAt:
-        Date.now()
-
-      }
-
-    );
-
-
-    document
-    .getElementById("status")
-    .innerText =
-    "📞 Nexo call created";
+    "📞 Nexo call started";
 
 
     console.log(
@@ -530,50 +330,12 @@ window.startNexoCall = async function() {
       callId
     );
 
-
-    onValue(
-
-      ref(
-        db,
-        "calls/" +
-        callId +
-        "/answer"
-      ),
-
-      async function(snapshot) {
-
-        const answer =
-        snapshot.val();
-
-
-        if (
-          answer &&
-          !peerConnection
-          .currentRemoteDescription
-        ) {
-
-          await peerConnection
-          .setRemoteDescription(
-            answer
-          );
-
-
-          document
-          .getElementById("status")
-          .innerText =
-          "✅ Connected";
-
-        }
-
-      }
-
-    );
-
   }
 
-  catch(error) {
+  catch (error) {
 
     console.log(error);
+
 
     document
     .getElementById("status")
@@ -582,21 +344,22 @@ window.startNexoCall = async function() {
 
   }
 
-};
+}
 
 
-/* =====================================
-   END CALL
-===================================== */
+// ========================================
+// END NEXO CALL
+// ========================================
 
-window.endCall = async function() {
+async function endNexoCall() {
 
-  if (peerConnection) {
+  if (callId) {
 
-    peerConnection.close();
+    await database
+    .ref("calls/" + callId)
+    .remove();
 
-    peerConnection =
-    null;
+    callId = null;
 
   }
 
@@ -609,23 +372,7 @@ window.endCall = async function() {
       track.stop()
     );
 
-    stream =
-    null;
-
-  }
-
-
-  if (callId) {
-
-    await remove(
-
-      ref(
-        db,
-        "calls/" +
-        callId
-      )
-
-    );
+    stream = null;
 
   }
 
@@ -637,24 +384,18 @@ window.endCall = async function() {
 
 
   document
-  .getElementById("remoteVideo")
-  .srcObject =
-  null;
-
-
-  document
-  .getElementById("remoteBox")
-  .style.display =
-  "none";
-
-
-  document
   .getElementById("status")
   .innerText =
   "Call ended";
 
-};
+}
 
+
+// ========================================
+// START
+// ========================================
+
+startCall();
 
 </script>
 
