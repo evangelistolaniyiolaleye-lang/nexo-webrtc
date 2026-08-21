@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+
+<title>Nexo Authentication</title>
+
+</head>
+
+<body>
+
+<script type="module">
+
+import {
+  initializeApp
+}
+from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword
+}
+from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+
+
+const firebaseConfig = {
+
+  apiKey:
+  "AIzaSyAqnRQtBesAGrShPQ89A_abqi6Wejuup8I",
+
+  authDomain:
+  "nexoapp-adb97.firebaseapp.com",
+
+  databaseURL:
+  "https://nexoapp-adb97-default-rtdb.firebaseio.com",
+
+  projectId:
+  "nexoapp-adb97",
+
+  storageBucket:
+  "nexoapp-adb97.firebasestorage.app",
+
+  messagingSenderId:
+  "694321952953",
+
+  appId:
+  "1:694321952953:web:0b62ae562b07dd9f960368"
+
+};
+
+
+const app =
+initializeApp(firebaseConfig);
+
+
+const auth =
+getAuth(app);
+
+
+/* ==================================
+   RECEIVE COMMAND FROM APP INVENTOR
+================================== */
+
+window.addEventListener(
+  "message",
+  async function(event) {
+
+    try {
+
+      const data =
+      JSON.parse(event.data);
+
+
+      if (
+        data.action ===
+        "signup"
+      ) {
+
+        await signup(
+
+          data.email,
+
+          data.password
+
+        );
+
+      }
+
+
+      if (
+        data.action ===
+        "login"
+      ) {
+
+        await login(
+
+          data.email,
+
+          data.password
+
+        );
+
+      }
+
+    }
+
+    catch(error) {
+
+      sendResult({
+
+        success: false,
+
+        error:
+        error.message
+
+      });
+
+    }
+
+  }
+);
+
+
+/* ==================================
+   SIGN UP
+================================== */
+
+async function signup(
+  email,
+  password
+) {
+
+  try {
+
+    const result =
+    await createUserWithEmailAndPassword(
+
+      auth,
+
+      email,
+
+      password
+
+    );
+
+
+    sendResult({
+
+      success: true,
+
+      action: "signup",
+
+      uid:
+      result.user.uid,
+
+      email:
+      result.user.email
+
+    });
+
+  }
+
+  catch(error) {
+
+    sendResult({
+
+      success: false,
+
+      action: "signup",
+
+      error:
+      error.message
+
+    });
+
+  }
+
+}
+
+
+/* ==================================
+   LOGIN
+================================== */
+
+async function login(
+  email,
+  password
+) {
+
+  try {
+
+    const result =
+    await signInWithEmailAndPassword(
+
+      auth,
+
+      email,
+
+      password
+
+    );
+
+
+    sendResult({
+
+      success: true,
+
+      action: "login",
+
+      uid:
+      result.user.uid,
+
+      email:
+      result.user.email
+
+    });
+
+  }
+
+  catch(error) {
+
+    sendResult({
+
+      success: false,
+
+      action: "login",
+
+      error:
+      error.message
+
+    });
+
+  }
+
+}
+
+
+/* ==================================
+   SEND RESULT TO APP INVENTOR
+================================== */
+
+function sendResult(data) {
+
+  const message =
+  JSON.stringify(data);
+
+
+  /*
+     App Inventor WebViewer
+  */
+
+  if (
+    window.AppInventor &&
+    window.AppInventor.setWebViewString
+  ) {
+
+    window.AppInventor
+    .setWebViewString(
+      message
+    );
+
+  }
+
+}
+
+</script>
+
+</body>
+</html>
