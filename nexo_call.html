@@ -27,6 +27,7 @@ button {
   margin: 5px;
   border: none;
   border-radius: 10px;
+  font-size: 15px;
 }
 
 #status {
@@ -43,9 +44,9 @@ button {
 <h2>📞 Nexo Call</h2>
 
 <video
-id="localVideo"
-autoplay
-playsinline>
+  id="localVideo"
+  autoplay
+  playsinline>
 </video>
 
 <div id="status">
@@ -58,7 +59,7 @@ playsinline>
     📞 Call
   </button>
 
-  <button onclick="toggleMute()" id="muteButton">
+  <button id="muteButton" onclick="toggleMute()">
     🎤 Mute
   </button>
 
@@ -124,17 +125,20 @@ firebase.database();
 
 
 // ========================================
-// ORIGINAL VARIABLES
+// CAMERA VARIABLES
 // ========================================
 
 let stream;
+
 let videoTrack;
+
 let audioTrack;
+
 let currentCamera = "user";
 
 
 // ========================================
-// CALL VARIABLES
+// CALL VARIABLE
 // ========================================
 
 let callId = null;
@@ -146,27 +150,49 @@ let callId = null;
 
 async function startCall() {
 
-  stream =
-  await navigator.mediaDevices.getUserMedia({
+  try {
 
-    video: true,
+    stream =
+    await navigator.mediaDevices.getUserMedia({
 
-    audio: true
+      video: true,
 
-  });
+      audio: true
 
-
-  document
-  .getElementById("localVideo")
-  .srcObject = stream;
+    });
 
 
-  videoTrack =
-  stream.getVideoTracks()[0];
+    document
+    .getElementById("localVideo")
+    .srcObject =
+    stream;
 
 
-  audioTrack =
-  stream.getAudioTracks()[0];
+    videoTrack =
+    stream.getVideoTracks()[0];
+
+
+    audioTrack =
+    stream.getAudioTracks()[0];
+
+
+    document
+    .getElementById("status")
+    .innerText =
+    "🎤 Microphone ON";
+
+  }
+
+  catch (error) {
+
+    console.log(error);
+
+    document
+    .getElementById("status")
+    .innerText =
+    "❌ Camera or microphone permission failed";
+
+  }
 
 }
 
@@ -233,11 +259,13 @@ function toggleCamera() {
 
 
 // ========================================
-// ORIGINAL SWITCH CAMERA
-// DO NOT CHANGE THIS
+// SWITCH CAMERA
 // ========================================
 
 async function switchCamera() {
+
+  if (!stream) return;
+
 
   currentCamera =
     currentCamera === "user"
@@ -245,47 +273,68 @@ async function switchCamera() {
     : "user";
 
 
-  stream
-  .getTracks()
-  .forEach(track =>
-    track.stop()
-  );
+  try {
+
+    stream
+    .getTracks()
+    .forEach(track =>
+      track.stop()
+    );
 
 
-  stream =
-  await navigator.mediaDevices
-  .getUserMedia({
+    stream =
+    await navigator.mediaDevices
+    .getUserMedia({
 
-    video: {
+      video: {
 
-      facingMode:
-      currentCamera
+        facingMode:
+        currentCamera
 
-    },
+      },
 
-    audio: true
+      audio: true
 
-  });
-
-
-  document
-  .getElementById("localVideo")
-  .srcObject =
-  stream;
+    });
 
 
-  videoTrack =
-  stream.getVideoTracks()[0];
+    document
+    .getElementById("localVideo")
+    .srcObject =
+    stream;
 
 
-  audioTrack =
-  stream.getAudioTracks()[0];
+    videoTrack =
+    stream.getVideoTracks()[0];
+
+
+    audioTrack =
+    stream.getAudioTracks()[0];
+
+
+    document
+    .getElementById("status")
+    .innerText =
+    "📹 Camera switched";
+
+  }
+
+  catch (error) {
+
+    console.log(error);
+
+    document
+    .getElementById("status")
+    .innerText =
+    "❌ Unable to switch camera";
+
+  }
 
 }
 
 
 // ========================================
-// AUTOMATIC NEXO CALL
+// START NEXO CALL
 // ========================================
 
 async function startNexoCall() {
@@ -312,9 +361,11 @@ async function startNexoCall() {
     .ref("calls/" + callId)
     .set({
 
-      status: "calling",
+      status:
+      "calling",
 
-      createdAt: Date.now()
+      createdAt:
+      Date.now()
 
     });
 
@@ -326,7 +377,7 @@ async function startNexoCall() {
 
 
     console.log(
-      "Nexo Call ID:",
+      "Call created:",
       callId
     );
 
@@ -335,7 +386,6 @@ async function startNexoCall() {
   catch (error) {
 
     console.log(error);
-
 
     document
     .getElementById("status")
@@ -355,9 +405,20 @@ async function endNexoCall() {
 
   if (callId) {
 
-    await database
-    .ref("calls/" + callId)
-    .remove();
+    try {
+
+      await database
+      .ref("calls/" + callId)
+      .remove();
+
+    }
+
+    catch (error) {
+
+      console.log(error);
+
+    }
+
 
     callId = null;
 
@@ -377,6 +438,11 @@ async function endNexoCall() {
   }
 
 
+  videoTrack = null;
+
+  audioTrack = null;
+
+
   document
   .getElementById("localVideo")
   .srcObject =
@@ -387,6 +453,12 @@ async function endNexoCall() {
   .getElementById("status")
   .innerText =
   "Call ended";
+
+
+  document
+  .getElementById("muteButton")
+  .innerText =
+  "🎤 Mute";
 
 }
 
