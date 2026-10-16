@@ -1,475 +1,384 @@
+
 <!DOCTYPE html>
 <html>
 <head>
-
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>Nexo Call</title>
 
 <style>
-
 body {
   margin: 0;
+  padding: 12px;
   background: #111;
   color: white;
   text-align: center;
-  font-family: Arial;
+  font-family: Arial, sans-serif;
 }
-
+h2 { color: #a78bfa; }
 video {
   width: 100%;
-  max-height: 70vh;
-  background: black;
+  max-height: 38vh;
+  background: #000;
+  border-radius: 12px;
+  object-fit: cover;
+  margin-bottom: 8px;
 }
-
 button {
   padding: 12px;
   margin: 5px;
   border: none;
   border-radius: 10px;
-  font-size: 15px;
-}
-
-#status {
-  margin: 10px;
   font-size: 14px;
 }
-
+#status { margin: 12px; font-size: 14px; }
+.hidden { display: none; }
 </style>
-
 </head>
 
 <body>
-
 <h2>📞 Nexo Call</h2>
 
-<video
-  id="localVideo"
-  autoplay
-  playsinline>
-</video>
-
-<div id="status">
-🎤 Microphone ON
+<div id="videoArea">
+  <p>You</p>
+  <video id="localVideo" autoplay playsinline muted></video>
+  <p>Other person</p>
+  <video id="remoteVideo" autoplay playsinline></video>
 </div>
+
+<div id="status">Connecting to Nexo Call…</div>
 
 <div>
-
-  <button onclick="startNexoCall()">
-    📞 Call
-  </button>
-
-  <button id="muteButton" onclick="toggleMute()">
-    🎤 Mute
-  </button>
-
-  <button onclick="toggleCamera()">
-    📹 Camera
-  </button>
-
-  <button onclick="switchCamera()">
-    🔄 Switch
-  </button>
-
-  <button onclick="endNexoCall()">
-    📞 End Call
-  </button>
-
+  <button id="muteButton" onclick="toggleMute()">🎤 Mute</button>
+  <button id="cameraButton" onclick="toggleCamera()">📹 Camera Off</button>
+  <button onclick="switchCamera()">🔄 Switch</button>
+  <button onclick="endNexoCall()">📞 End Call</button>
 </div>
 
-
-<!-- Firebase -->
-
-<script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-app-compat.js"></script>
-
-<script src="https://www.gstatic.com/firebasejs/12.1.0/firebase-database-compat.js"></script>
-
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
+const SUPABASE_URL = "YOUR_SUPABASE_URL";
+const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
 
+const supabase = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY
+);
 
-// ========================================
-// FIREBASE
-// ========================================
+const params = new URLSearchParams(location.search);
+const roomId = params.get("room");
+const role = params.get("role") || "caller";
+const callMode = params.get("mode") || "video";
 
-const firebaseConfig = {
-
-  apiKey:
-  "AIzaSyAqnRQtBesAGrShPQ89A_abqi6Wejuup8I",
-
-  authDomain:
-  "nexoapp-adb97.firebaseapp.com",
-
-  databaseURL:
-  "https://nexoapp-adb97-default-rtdb.firebaseio.com",
-
-  projectId:
-  "nexoapp-adb97",
-
-  storageBucket:
-  "nexoapp-adb97.firebasestorage.app",
-
-  messagingSenderId:
-  "694321952953",
-
-  appId:
-  "1:694321952953:web:0b62ae562b07dd9f960368"
-
-};
-
-
-firebase.initializeApp(firebaseConfig);
-
-const database =
-firebase.database();
-
-
-// ========================================
-// CAMERA VARIABLES
-// ========================================
-
-let stream;
-
-let videoTrack;
-
-let audioTrack;
-
+let stream = null;
+let pc = null;
+let channel = null;
 let currentCamera = "user";
+let audioTrack = null;
+let videoTrack = null;
+let remoteDescriptionSet = false;
+let pendingCandidates = [];
+let ended = false;
+let offerSent = false;
 
+const localVideo = document.getElementById("localVideo");
+const remoteVideo = document.getElementById("remoteVideo");
+const statusLabel = document.getElementById("status");
 
-// ========================================
-// CALL VARIABLE
-// ========================================
+function setStatus(text) {
+  statusLabel.innerText = text;
+}
 
-let callId = null;
+async function startMedia() {
+  const constraints = {
+    audio: true,
+    video: callMode !== "audio"
+      ? { facingMode: currentCamera }
+      : false
+  };
 
+  stream = await navigator.mediaDevices.getUserMedia(constraints);
+  localVideo.srcObject = stream;
 
-// ========================================
-// START CAMERA + MICROPHONE
-// ========================================
+  audioTrack = stream.getAudioTracks()[0] || null;
+  videoTrack = stream.getVideoTracks()[0] || null;
 
-async function startCall() {
+  document.getElementById("videoArea").classList.toggle(
+    "hidden", callMode === "audio"
+  );
+
+  if (callMode === "audio") {
+    setStatus("🎤 Microphone ready — audio call");
+  } else {
+    setStatus("📹 Camera and microphone ready");
+  }
+}
+
+function sendSignal(data) {
+  if (!channel) return Promise.resolve();
+
+  return channel.send({
+    type: "broadcast",
+    event: "signal",
+    payload: data
+  });
+}
+
+function createPeerConnection() {
+  if (pc) return;
+
+  pc = new RTCPeerConnection({
+    iceServers: [
+      { urls: "stun:stun.l.google.com:19302" }
+    ]
+  });
+
+  stream.getTracks().forEach(track => {
+    pc.addTrack(track, stream);
+  });
+
+  pc.ontrack = event => {
+    remoteVideo.srcObject = event.streams[0];
+    remoteVideo.play().catch(() => {});
+    setStatus("🟢 Connected");
+  };
+
+  pc.onicecandidate = event => {
+    if (event.candidate) {
+      sendSignal({
+        kind: "candidate",
+        candidate: event.candidate
+      });
+    }
+  };
+
+  pc.onconnectionstatechange = () => {
+    if (!pc) return;
+
+    if (pc.connectionState === "connected") {
+      setStatus("🟢 Call connected");
+    } else if (pc.connectionState === "connecting") {
+      setStatus("Connecting call…");
+    } else if (pc.connectionState === "disconnected") {
+      setStatus("Connection interrupted");
+    } else if (pc.connectionState === "failed") {
+      setStatus("Connection failed. Check network settings.");
+    }
+  };
+}
+
+async function createOffer() {
+  if (offerSent || !pc || ended) return;
+  offerSent = true;
 
   try {
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
 
-    stream =
-    await navigator.mediaDevices.getUserMedia({
-
-      video: true,
-
-      audio: true
-
+    await sendSignal({
+      kind: "offer",
+      description: pc.localDescription
     });
 
-
-    document
-    .getElementById("localVideo")
-    .srcObject =
-    stream;
-
-
-    videoTrack =
-    stream.getVideoTracks()[0];
-
-
-    audioTrack =
-    stream.getAudioTracks()[0];
-
-
-    document
-    .getElementById("status")
-    .innerText =
-    "🎤 Microphone ON";
-
+    setStatus("Calling… waiting for the other person");
+  } catch (error) {
+    offerSent = false;
+    console.error(error);
+    setStatus("Could not start the call");
   }
-
-  catch (error) {
-
-    console.log(error);
-
-    document
-    .getElementById("status")
-    .innerText =
-    "❌ Camera or microphone permission failed";
-
-  }
-
 }
 
-
-// ========================================
-// MUTE / UNMUTE
-// ========================================
-
-function toggleMute() {
-
-  if (!audioTrack) return;
-
-
-  audioTrack.enabled =
-  !audioTrack.enabled;
-
-
-  if (audioTrack.enabled) {
-
-    document
-    .getElementById("muteButton")
-    .innerText =
-    "🎤 Mute";
-
-
-    document
-    .getElementById("status")
-    .innerText =
-    "🎤 Microphone ON";
-
-  }
-
-  else {
-
-    document
-    .getElementById("muteButton")
-    .innerText =
-    "🔇 Unmute";
-
-
-    document
-    .getElementById("status")
-    .innerText =
-    "🔇 Microphone MUTED";
-
-  }
-
-}
-
-
-// ========================================
-// CAMERA ON / OFF
-// ========================================
-
-function toggleCamera() {
-
-  if (!videoTrack) return;
-
-
-  videoTrack.enabled =
-  !videoTrack.enabled;
-
-}
-
-
-// ========================================
-// SWITCH CAMERA
-// ========================================
-
-async function switchCamera() {
-
-  if (!stream) return;
-
-
-  currentCamera =
-    currentCamera === "user"
-    ? "environment"
-    : "user";
-
+async function handleSignal(payload) {
+  if (!payload || ended) return;
 
   try {
+    if (payload.kind === "offer" && role === "receiver") {
+      if (pc.remoteDescription) return;
 
-    stream
-    .getTracks()
-    .forEach(track =>
-      track.stop()
-    );
+      await pc.setRemoteDescription(payload.description);
+      remoteDescriptionSet = true;
 
+      for (const candidate of pendingCandidates) {
+        await pc.addIceCandidate(candidate);
+      }
+      pendingCandidates = [];
 
-    stream =
-    await navigator.mediaDevices
-    .getUserMedia({
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
 
-      video: {
+      await sendSignal({
+        kind: "answer",
+        description: pc.localDescription
+      });
 
-        facingMode:
-        currentCamera
+      setStatus("Answer sent — connecting…");
+    }
 
-      },
+    else if (payload.kind === "answer" && role === "caller") {
+      if (!pc || pc.remoteDescription) return;
 
-      audio: true
+      await pc.setRemoteDescription(payload.description);
+      remoteDescriptionSet = true;
 
-    });
+      for (const candidate of pendingCandidates) {
+        await pc.addIceCandidate(candidate);
+      }
+      pendingCandidates = [];
+    }
 
+    else if (payload.kind === "candidate" && pc) {
+      if (remoteDescriptionSet) {
+        await pc.addIceCandidate(payload.candidate);
+      } else {
+        pendingCandidates.push(payload.candidate);
+      }
+    }
 
-    document
-    .getElementById("localVideo")
-    .srcObject =
-    stream;
-
-
-    videoTrack =
-    stream.getVideoTracks()[0];
-
-
-    audioTrack =
-    stream.getAudioTracks()[0];
-
-
-    document
-    .getElementById("status")
-    .innerText =
-    "📹 Camera switched";
-
+    else if (payload.kind === "hangup") {
+      await endNexoCall(false);
+      setStatus("The other person ended the call");
+    }
+  } catch (error) {
+    console.error(error);
+    setStatus("Call setup error. Please try again.");
   }
-
-  catch (error) {
-
-    console.log(error);
-
-    document
-    .getElementById("status")
-    .innerText =
-    "❌ Unable to switch camera";
-
-  }
-
 }
-
-
-// ========================================
-// START NEXO CALL
-// ========================================
 
 async function startNexoCall() {
+  if (!roomId) {
+    setStatus("Missing call room ID");
+    return;
+  }
 
   try {
+    ended = false;
+    await startMedia();
+    createPeerConnection();
 
-    if (!stream) {
-
-      await startCall();
-
-    }
-
-
-    callId =
-      "call_" +
-      Date.now() +
-      "_" +
-      Math.random()
-      .toString(36)
-      .substring(2, 8);
-
-
-    await database
-    .ref("calls/" + callId)
-    .set({
-
-      status:
-      "calling",
-
-      createdAt:
-      Date.now()
-
+    channel = supabase.channel("nexo-call-" + roomId, {
+      config: {
+        broadcast: { self: false },
+        presence: { key: role + "-" + crypto.randomUUID() }
+      }
     });
 
+    channel.on("broadcast", { event: "signal" }, ({ payload }) => {
+      handleSignal(payload);
+    });
 
-    document
-    .getElementById("status")
-    .innerText =
-    "📞 Nexo call started";
+    channel.on("presence", { event: "sync" }, () => {
+      const presence = channel.presenceState();
+      const roles = Object.values(presence).flat().map(item => item.role);
 
+      if (role === "caller" && roles.includes("receiver")) {
+        createOffer();
+      }
+    });
 
-    console.log(
-      "Call created:",
-      callId
-    );
-
+    channel.subscribe(async state => {
+      if (state === "SUBSCRIBED") {
+        await channel.track({ role, joinedAt: Date.now() });
+        setStatus(
+          role === "caller"
+            ? "Waiting for the other person to join…"
+            : "Joined call room — waiting for caller…"
+        );
+      } else if (state === "CHANNEL_ERROR" || state === "TIMED_OUT") {
+        setStatus("Signaling connection failed");
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    setStatus("Could not access camera/microphone or join call");
   }
-
-  catch (error) {
-
-    console.log(error);
-
-    document
-    .getElementById("status")
-    .innerText =
-    "❌ Unable to start call";
-
-  }
-
 }
 
+function toggleMute() {
+  if (!audioTrack) return;
 
-// ========================================
-// END NEXO CALL
-// ========================================
+  audioTrack.enabled = !audioTrack.enabled;
+  document.getElementById("muteButton").innerText =
+    audioTrack.enabled ? "🎤 Mute" : "🔇 Unmute";
+}
 
-async function endNexoCall() {
+function toggleCamera() {
+  if (!videoTrack) return;
 
-  if (callId) {
+  videoTrack.enabled = !videoTrack.enabled;
+  document.getElementById("cameraButton").innerText =
+    videoTrack.enabled ? "📹 Camera Off" : "📹 Camera On";
+}
 
+async function switchCamera() {
+  if (!stream || callMode === "audio") return;
+
+  currentCamera = currentCamera === "user" ? "environment" : "user";
+
+  try {
+    const newStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: currentCamera },
+      audio: false
+    });
+
+    const newTrack = newStream.getVideoTracks()[0];
+    const sender = pc?.getSenders().find(s => s.track?.kind === "video");
+
+    if (sender) await sender.replaceTrack(newTrack);
+
+    const oldTrack = videoTrack;
+    stream.removeTrack(oldTrack);
+    oldTrack?.stop();
+    stream.addTrack(newTrack);
+
+    videoTrack = newTrack;
+    localVideo.srcObject = stream;
+    setStatus("📹 Camera switched");
+  } catch (error) {
+    console.error(error);
+    setStatus("Could not switch camera");
+  }
+}
+
+async function endNexoCall(notify = true) {
+  if (ended) return;
+  ended = true;
+
+  if (notify && channel) {
     try {
-
-      await database
-      .ref("calls/" + callId)
-      .remove();
-
-    }
-
-    catch (error) {
-
-      console.log(error);
-
-    }
-
-
-    callId = null;
-
+      await sendSignal({ kind: "hangup" });
+    } catch (_) {}
   }
 
+  if (pc) {
+    pc.close();
+    pc = null;
+  }
 
   if (stream) {
-
-    stream
-    .getTracks()
-    .forEach(track =>
-      track.stop()
-    );
-
+    stream.getTracks().forEach(track => track.stop());
     stream = null;
-
   }
 
-
-  videoTrack = null;
-
+  localVideo.srcObject = null;
+  remoteVideo.srcObject = null;
   audioTrack = null;
+  videoTrack = null;
+  remoteDescriptionSet = false;
+  pendingCandidates = [];
+  offerSent = false;
 
+  if (channel) {
+    const oldChannel = channel;
+    channel = null;
+    await supabase.removeChannel(oldChannel);
+  }
 
-  document
-  .getElementById("localVideo")
-  .srcObject =
-  null;
-
-
-  document
-  .getElementById("status")
-  .innerText =
-  "Call ended";
-
-
-  document
-  .getElementById("muteButton")
-  .innerText =
-  "🎤 Mute";
-
+  document.getElementById("muteButton").innerText = "🎤 Mute";
+  document.getElementById("cameraButton").innerText = "📹 Camera Off";
+  setStatus("Call ended");
 }
 
-
-// ========================================
-// START
-// ========================================
-
-startCall();
-
+startNexoCall();
 </script>
-
 </body>
 </html>
