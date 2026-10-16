@@ -66,17 +66,13 @@ button {
   <button id="muteButton" onclick="toggleMute()">🎤 Mute</button>
   <button id="cameraButton" onclick="toggleCamera()">📹 Camera Off</button>
   <button onclick="switchCamera()">🔄 Switch</button>
-  <button onclick="endNexoCall()">📞 End Call</button>
+  <button id="endCallButton" onclick="endNexoCall()">📞 End Call</button>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
 "use strict";
-
-// ========================================
-// SUPABASE PROJECT SETTINGS
-// ========================================
 
 const SUPABASE_URL =
   "https://usdkrqvgfqlxbrzgjrnb.supabase.co";
@@ -95,17 +91,12 @@ const supabase = window.supabase.createClient(
   }
 );
 
-// ========================================
-// CALL DETAILS
-// ========================================
-
 const params = new URLSearchParams(location.search);
 const hashParams = new URLSearchParams(location.hash.slice(1));
 
 const roomId = params.get("room");
 const role = params.get("role") || "caller";
 const callMode = params.get("mode") || "video";
-
 const accessToken = hashParams.get("access_token");
 
 let currentUserId = null;
@@ -121,6 +112,7 @@ let pendingCandidates = [];
 let ended = false;
 let offerSent = false;
 let startInProgress = false;
+let endingInProgress = false;
 
 const localVideo = document.getElementById("localVideo");
 const remoteVideo = document.getElementById("remoteVideo");
@@ -130,9 +122,19 @@ function setStatus(message) {
   statusLabel.innerText = message;
 }
 
-// ========================================
-// AUTHENTICATION
-// ========================================
+// Tell Kodular when local call cleanup has completed.
+function notifyKodularCallEnded() {
+  try {
+    if (
+      window.Kodular &&
+      typeof window.Kodular.setWebViewString === "function"
+    ) {
+      window.Kodular.setWebViewString("CALL_ENDED");
+    }
+  } catch (error) {
+    console.error("Kodular bridge notification failed:", error);
+  }
+}
 
 async function authenticateUser() {
   if (!accessToken) {
@@ -153,7 +155,6 @@ async function authenticateUser() {
 
   await supabase.realtime.setAuth(accessToken);
 
-  // Remove the token fragment from the visible URL.
   history.replaceState(
     null,
     "",
@@ -162,10 +163,6 @@ async function authenticateUser() {
 
   return data.user;
 }
-
-// ========================================
-// CAMERA AND MICROPHONE
-// ========================================
 
 async function startMedia() {
   stream = await navigator.mediaDevices.getUserMedia({
@@ -192,10 +189,6 @@ async function startMedia() {
   );
 }
 
-// ========================================
-// REALTIME SIGNALING
-// ========================================
-
 function sendSignal(data) {
   if (!channel || ended) {
     return Promise.resolve();
@@ -210,10 +203,6 @@ function sendSignal(data) {
     }
   });
 }
-
-// ========================================
-// WEBRTC CONNECTION
-// ========================================
 
 function createPeerConnection() {
   if (pc) return;
@@ -270,10 +259,6 @@ function createPeerConnection() {
   };
 }
 
-// ========================================
-// CALLER CREATES OFFER
-// ========================================
-
 async function createOffer() {
   if (offerSent || !pc || ended) return;
 
@@ -296,13 +281,8 @@ async function createOffer() {
   }
 }
 
-// ========================================
-// RECEIVE CALL SIGNALS
-// ========================================
-
 async function handleSignal(payload) {
   if (!payload || ended || !pc) return;
-
   if (payload.senderId === currentUserId) return;
 
   try {
@@ -327,9 +307,10 @@ async function handleSignal(payload) {
       });
 
       setStatus("Answer sent… connecting");
-    }
-
-    else if (payload.kind === "answer" && role === "caller") {
+    } else if (
+      payload.kind === "answer" &&
+      role === "caller"
+    ) {
       if (pc.remoteDescription) return;
 
       await pc.setRemoteDescription(payload.description);
@@ -340,17 +321,13 @@ async function handleSignal(payload) {
       }
 
       pendingCandidates = [];
-    }
-
-    else if (payload.kind === "candidate") {
+    } else if (payload.kind === "candidate") {
       if (remoteDescriptionSet) {
         await pc.addIceCandidate(payload.candidate);
       } else {
         pendingCandidates.push(payload.candidate);
       }
-    }
-
-    else if (payload.kind === "hangup") {
+    } else if (payload.kind === "hangup") {
       await endNexoCall(false);
       setStatus("The other person ended the call");
     }
@@ -359,10 +336,6 @@ async function handleSignal(payload) {
     setStatus("Call setup failed. Please try again.");
   }
 }
-
-// ========================================
-// JOIN THE CALL ROOM
-// ========================================
 
 async function startNexoCall() {
   if (startInProgress) return;
@@ -439,7 +412,6 @@ async function startNexoCall() {
         );
       }
     });
-
   } catch (error) {
     console.error(error);
     setStatus(error.message || "Could not start Nexo Call.");
@@ -448,12 +420,8 @@ async function startNexoCall() {
   }
 }
 
-// ========================================
-// MUTE AND CAMERA CONTROLS
-// ========================================
-
 function toggleMute() {
-  if (!audioTrack) return;
+  if (!audioTrack || ended) return;
 
   audioTrack.enabled = !audioTrack.enabled;
 
@@ -462,7 +430,7 @@ function toggleMute() {
 }
 
 function toggleCamera() {
-  if (!videoTrack) return;
+  if (!videoTrack || ended) return;
 
   videoTrack.enabled = !videoTrack.enabled;
 
@@ -471,7 +439,7 @@ function toggleCamera() {
 }
 
 async function switchCamera() {
-  if (!stream || !pc || callMode === "audio") return;
+  if (!stream || !pc || ended || callMode === "audio") return;
 
   const previousCamera = currentCamera;
 
@@ -517,13 +485,15 @@ async function switchCamera() {
 }
 
 // ========================================
-// END CALL
+// UPDATED END CALL
 // ========================================
 
 async function endNexoCall(notify = true) {
-  if (ended) return;
+  if (ended || endingInProgress) return;
 
-  // Send hang-up before setting ended = true.
+  endingInProgress = true;
+
+  // Notify the other participant before local cleanup.
   if (notify && channel) {
     try {
       await channel.send({
@@ -535,13 +505,16 @@ async function endNexoCall(notify = true) {
         }
       });
     } catch (error) {
-      console.error(error);
+      console.error("Hang-up signal failed:", error);
     }
   }
 
   ended = true;
 
   if (pc) {
+    pc.ontrack = null;
+    pc.onicecandidate = null;
+    pc.onconnectionstatechange = null;
     pc.close();
     pc = null;
   }
@@ -563,13 +536,21 @@ async function endNexoCall(notify = true) {
   if (channel) {
     const oldChannel = channel;
     channel = null;
-    await supabase.removeChannel(oldChannel);
+
+    try {
+      await supabase.removeChannel(oldChannel);
+    } catch (error) {
+      console.error("Channel cleanup failed:", error);
+    }
   }
 
   document.getElementById("muteButton").innerText = "🎤 Mute";
   document.getElementById("cameraButton").innerText = "📹 Camera Off";
 
   setStatus("Call ended");
+
+  // Notify Kodular after cleanup.
+  notifyKodularCallEnded();
 }
 
 // Start when the page opens.
